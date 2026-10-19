@@ -740,3 +740,16 @@ fieldset {
     transition-duration: 0.01ms !important;
   }
 }
+
+.security summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--ink-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.security .form {
+  padding-top: 8px;
+}

@@ -1,10 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
+import { publicEnvProblem } from './keyGuard'
 import type { Remote, RemoteTask } from './sync'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = url && anonKey ? createClient(url, anonKey) : null
+// Última barrera: si por error se publicó una clave de administrador, la app se niega a usarla.
+const keyProblem = anonKey ? publicEnvProblem('VITE_SUPABASE_ANON_KEY', anonKey) : null
+if (keyProblem) console.error(`Sincronización desactivada: la clave configurada ${keyProblem}`)
+
+export const supabase =
+  url && anonKey && !keyProblem
+    ? createClient(url, anonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          // Solo se inicia sesión con email y contraseña desde el formulario: nunca desde tokens en la URL.
+          detectSessionInUrl: false,
+        },
+      })
+    : null
 
 const PAGE = 1000
 

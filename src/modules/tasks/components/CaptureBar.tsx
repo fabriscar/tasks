@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { relativeDate, todayISO } from '../../../core/dates'
 import { repeatLabel } from '../../../core/recurrence'
-import { parseQuickTask, type ParsedTask } from '../parse'
+import { MAX_INPUT, parseQuickTask, type ParsedTask } from '../parse'
 import { SendIcon } from './icons'
 
 interface CaptureBarProps {
@@ -69,6 +69,7 @@ export function CaptureBar({ onAdd }: CaptureBarProps) {
           autoCorrect="on"
           autoCapitalize="sentences"
           spellCheck
+          maxLength={MAX_INPUT}
           placeholder="Anotá una tarea…"
           aria-label="Nueva tarea"
         />

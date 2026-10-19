@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { onLocalChange } from './events'
 import { supabase, supabaseRemote } from './supabase'
-import { syncOnce } from './sync'
+import { db } from './db'
+import { claimLocalData, syncOnce, wipeLocalData } from './sync'
 
 export interface SyncState {
   status: 'unconfigured' | 'signed-out' | 'idle' | 'syncing' | 'error'
@@ -56,6 +57,7 @@ export async function syncNow(): Promise<void> {
   running = true
   setState({ status: 'syncing', email: session.user.email ?? null })
   try {
+    await claimLocalData(session.user.id)
     do {
       rerun = false
       await syncOnce(supabaseRemote(), session.user.id)
@@ -76,21 +78,57 @@ export async function signIn(email: string, password: string): Promise<string | 
   return null
 }
 
+export const MIN_PASSWORD_LENGTH = 10
+
 /** Devuelve un mensaje de error, o null si salió bien. `needsConfirmation` avisa si hay que confirmar por mail. */
 export async function signUp(
   email: string,
   password: string,
 ): Promise<{ error: string | null; needsConfirmation: boolean }> {
   if (!supabase) return { error: 'La sincronización no está configurada.', needsConfirmation: false }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`, needsConfirmation: false }
+  }
   const { data, error } = await supabase.auth.signUp({ email, password })
-  if (error) return { error: error.message, needsConfirmation: false }
+  if (error) {
+    const closed = error.code === 'signup_disabled' || /signups? not allowed/i.test(error.message)
+    return {
+      error: closed ? 'El registro está cerrado. Iniciá sesión con la cuenta que ya creaste.' : error.message,
+      needsConfirmation: false,
+    }
+  }
   if (data.session) void syncNow()
   return { error: null, needsConfirmation: !data.session }
 }
 
-export async function signOut(): Promise<void> {
-  await supabase?.auth.signOut()
+export type SignOutScope = 'device' | 'wipe' | 'everywhere'
+
+/**
+ * - device: cierra la sesión solo en este dispositivo (los otros siguen abiertos).
+ * - wipe: además borra las tareas guardadas acá. Se niega si hay cambios sin subir, para no perderlos.
+ * - everywhere: invalida la sesión en todos los dispositivos (para un teléfono perdido o una contraseña filtrada).
+ */
+export async function signOut(scope: SignOutScope = 'device'): Promise<string | null> {
+  if (!supabase) return null
+  if (scope === 'wipe') {
+    await syncNow()
+    const pending = await db.tasks.where('dirty').equals(1).count()
+    if (pending > 0) {
+      return `Hay ${pending} ${pending === 1 ? 'cambio' : 'cambios'} sin sincronizar. Conectate a internet y probá de nuevo para no perderlos.`
+    }
+  }
+  const { error } = await supabase.auth.signOut({ scope: scope === 'everywhere' ? 'global' : 'local' })
+  if (error) return error.message
+  if (scope === 'wipe') await wipeLocalData()
   setState({ status: 'signed-out', email: null, error: null })
+  return null
+}
+
+export async function changePassword(password: string): Promise<string | null> {
+  if (!supabase) return 'La sincronización no está configurada.'
+  if (password.length < MIN_PASSWORD_LENGTH) return `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`
+  const { error } = await supabase.auth.updateUser({ password })
+  return error ? error.message : null
 }
 
 let started = false

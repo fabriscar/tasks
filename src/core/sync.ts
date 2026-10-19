@@ -116,3 +116,27 @@ export async function syncOnce(remote: Remote, userId: string): Promise<{ pushed
 
   return { pushed, pulled: rows.length }
 }
+
+/**
+ * Las tareas locales pertenecen a una sola cuenta. Si en este dispositivo inicia sesión otra cuenta,
+ * se descartan los datos de la anterior para no subirlos (ni mostrarlos) en la cuenta nueva.
+ * Las tareas creadas antes de iniciar sesión por primera vez pasan a ser de esa cuenta.
+ */
+export async function claimLocalData(userId: string): Promise<void> {
+  await db.transaction('rw', db.tasks, db.meta, async () => {
+    const owner = (await db.meta.get('owner'))?.value
+    if (owner && owner !== userId) {
+      await db.tasks.clear()
+      await db.meta.clear()
+    }
+    await db.meta.put({ key: 'owner', value: userId })
+  })
+}
+
+/** Borra todo lo guardado en este dispositivo. */
+export async function wipeLocalData(): Promise<void> {
+  await db.transaction('rw', db.tasks, db.meta, async () => {
+    await db.tasks.clear()
+    await db.meta.clear()
+  })
+}

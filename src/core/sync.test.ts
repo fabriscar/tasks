@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
-import { syncOnce, toRemote, type Remote, type RemoteTask } from './sync'
+import { claimLocalData, syncOnce, toRemote, type Remote, type RemoteTask } from './sync'
 import type { Task } from './types'
 
 const USER = 'user-1'
@@ -107,5 +107,26 @@ describe('syncOnce', () => {
     await syncOnce(remote, USER)
     const second = await syncOnce(remote, USER)
     expect(second.pushed).toBe(0)
+  })
+})
+
+describe('claimLocalData', () => {
+  it('conserva las tareas locales cuando es la misma cuenta o la primera vez', async () => {
+    await db.tasks.add(task({ title: 'Mía' }))
+    await claimLocalData('user-1')
+    await claimLocalData('user-1')
+    expect(await db.tasks.count()).toBe(1)
+  })
+
+  it('descarta los datos de otra cuenta al cambiar de usuario', async () => {
+    await db.tasks.add(task({ title: 'De la cuenta 1' }))
+    await claimLocalData('user-1')
+    await db.meta.put({ key: 'lastPull', value: '2026-10-19T12:00:00.000Z' })
+
+    await claimLocalData('user-2')
+
+    expect(await db.tasks.count()).toBe(0)
+    expect(await db.meta.get('lastPull')).toBeUndefined()
+    expect((await db.meta.get('owner'))?.value).toBe('user-2')
   })
 })

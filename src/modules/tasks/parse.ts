@@ -145,6 +145,9 @@ function buildDate(day: number, month: number, yearGiven: number | undefined, to
   return date
 }
 
+/** Largo máximo de una frase de captura. Acota el trabajo del parser y el tamaño de lo que se guarda. */
+export const MAX_INPUT = 500
+
 const TRAILING_CONNECTOR = /\s+(?:para|el|la|los|las|a|de|en|por|este|esta|pr[oó]ximo)\s*$/iu
 
 function cleanTitle(text: string): string {
@@ -159,6 +162,7 @@ function cleanTitle(text: string): string {
  */
 export function parseQuickTask(input: string, now: Date = new Date()): ParsedTask {
   const today = todayISO(now)
+  input = input.slice(0, MAX_INPUT)
   let text = input
 
   const tags: string[] = []

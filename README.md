@@ -22,13 +22,15 @@ Hoy incluye la **fase 1: tareas**. Los hábitos y el resto de los módulos se ag
 - **Repetición:** al completar una tarea repetitiva se crea la siguiente.
 - **Sincronización** entre dispositivos con Supabase (opcional, ver abajo). Funciona sin conexión y sube los cambios cuando vuelve internet.
 - **Copia de seguridad** en JSON desde el panel de sincronización (ícono de nube).
+- **Seguridad de la cuenta:** cambiar contraseña, cerrar sesión y borrar los datos de un dispositivo, o cerrar sesión en todos los dispositivos si perdés uno.
 
 ## Desarrollo
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # parser de frases, repetición, vistas y sincronización
+npm test           # parser, repetición, vistas, sincronización y seguridad de la base (RLS)
+npm run typecheck
 npm run build      # genera dist/
 ```
 
@@ -36,14 +38,14 @@ npm run build      # genera dist/
 
 1. Crear una cuenta y un proyecto en [supabase.com](https://supabase.com).
 2. En **SQL Editor**, pegar y ejecutar el contenido de [`supabase/schema.sql`](supabase/schema.sql).
-3. En **Authentication > Providers**, dejar habilitado Email. Si no querés confirmar el mail al crear la cuenta, desactivá “Confirm email”. Si lo dejás activo, en **Authentication > URL Configuration** poné como *Site URL* la dirección donde publiques la app.
+3. En **Authentication > Providers**, dejar habilitado Email. Si lo dejás con confirmación por mail, en **Authentication > URL Configuration** poné como *Site URL* la dirección donde publiques la app.
 4. En **Project Settings > API** copiar la *Project URL* y la clave *anon public*.
 5. Para probar en local: copiar `.env.example` a `.env.local` y completar los dos valores.
 6. Para la versión publicada: en GitHub, **Settings > Secrets and variables > Actions > Variables**, crear `SUPABASE_URL` y `SUPABASE_ANON_KEY` con esos valores.
 
-La clave *anon* es pública por diseño. Lo que protege tus datos es la política de seguridad por fila de `schema.sql`: cada usuario solo lee y escribe sus propias tareas. No uses nunca la clave *service_role* en esta app.
+La clave *anon* es pública por diseño. Lo que protege tus datos es la política de seguridad por fila de `schema.sql`: cada usuario solo lee y escribe sus propias tareas. No uses nunca la clave *service_role* ni *secret* en esta app: si la ponés por error, el build falla a propósito y la app se niega a usarla. La app no usa ninguna clave de IA; el detalle de qué está protegido y qué tenés que configurar vos está en [SECURITY.md](SECURITY.md).
 
-Después, en la app: ícono de nube > **Crear cuenta** (una vez) y **Iniciar sesión** en cada dispositivo.
+Después, en la app: ícono de nube > **Crear cuenta** (una vez, con contraseña de al menos 10 caracteres) y **Iniciar sesión** en cada dispositivo. **Cuando tengas tu cuenta, desactivá el registro de usuarios nuevos** en Supabase (ver [SECURITY.md](SECURITY.md)): es una app personal y no debería poder crear cuentas cualquiera.
 
 Cómo se resuelven los conflictos: si editás la misma tarea en dos dispositivos, gana la edición más reciente de esa tarea. Esto depende de que los relojes de los dispositivos estén en hora.
 

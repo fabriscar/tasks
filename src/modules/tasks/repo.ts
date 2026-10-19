@@ -6,6 +6,17 @@ import type { Task } from '../../core/types'
 
 const nowISO = () => new Date().toISOString()
 
+/** Topes alineados con las restricciones de supabase/schema.sql. */
+export const LIMITS = { title: 500, notes: 10_000, tags: 20, tag: 50 }
+
+function bounded<T extends { title?: string; notes?: string; tags?: string[] }>(fields: T): T {
+  const out = { ...fields }
+  if (out.title !== undefined) out.title = out.title.slice(0, LIMITS.title)
+  if (out.notes !== undefined) out.notes = out.notes.slice(0, LIMITS.notes)
+  if (out.tags !== undefined) out.tags = out.tags.slice(0, LIMITS.tags).map((t) => t.slice(0, LIMITS.tag))
+  return out
+}
+
 export type TaskInput = Partial<Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>> & { title: string }
 
 export async function addTask(input: TaskInput): Promise<Task> {
@@ -18,7 +29,7 @@ export async function addTask(input: TaskInput): Promise<Task> {
     tags: [],
     repeat: null,
     doneAt: null,
-    ...input,
+    ...bounded(input),
     id: crypto.randomUUID(),
     createdAt: now,
     updatedAt: now,
@@ -31,7 +42,7 @@ export async function addTask(input: TaskInput): Promise<Task> {
 }
 
 export async function updateTask(id: string, patch: Partial<Omit<Task, 'id'>>): Promise<void> {
-  await db.tasks.update(id, { ...patch, updatedAt: nowISO(), dirty: 1 })
+  await db.tasks.update(id, { ...bounded(patch), updatedAt: nowISO(), dirty: 1 })
   emitLocalChange()
 }
 

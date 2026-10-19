@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { todayISO, weekdayOf } from '../../../core/dates'
 import { repeatLabel } from '../../../core/recurrence'
 import type { Priority, Repeat, Task } from '../../../core/types'
-import { removeTask, updateTask } from '../repo'
+import { LIMITS, removeTask, updateTask } from '../repo'
 import { Sheet } from './Sheet'
 
 interface TaskEditorProps {
@@ -99,12 +99,12 @@ export function TaskEditor({ task, onClose, onDeleted }: TaskEditorProps) {
       <form className="form" onSubmit={save}>
         <label>
           Tarea
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={LIMITS.title} required />
         </label>
 
         <label>
           Notas
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={LIMITS.notes} />
         </label>
 
         <div className="form-row">
@@ -166,7 +166,7 @@ export function TaskEditor({ task, onClose, onDeleted }: TaskEditorProps) {
 
         <label>
           Etiquetas
-          <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="#casa #trabajo" />
+          <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="#casa #trabajo" maxLength={400} />
         </label>
 
         <div className="form-actions">

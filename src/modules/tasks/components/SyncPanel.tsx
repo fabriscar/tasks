@@ -1,7 +1,16 @@
 import { useState, type FormEvent } from 'react'
 import { db } from '../../../core/db'
 import { todayISO } from '../../../core/dates'
-import { signIn, signOut, signUp, syncNow, useSyncState } from '../../../core/syncController'
+import {
+  MIN_PASSWORD_LENGTH,
+  changePassword,
+  signIn,
+  signOut,
+  signUp,
+  syncNow,
+  useSyncState,
+  type SignOutScope,
+} from '../../../core/syncController'
 import { Sheet } from './Sheet'
 
 interface SyncPanelProps {
@@ -33,6 +42,7 @@ export function SyncPanel({ onClose }: SyncPanelProps) {
   const sync = useSyncState()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -41,12 +51,13 @@ export function SyncPanel({ onClose }: SyncPanelProps) {
     setBusy(true)
     setMessage(null)
     setMessage(await signIn(email.trim(), password))
+    setPassword('')
     setBusy(false)
   }
 
   const register = async () => {
-    if (!email.trim() || password.length < 6) {
-      setMessage('Completá el email y una contraseña de al menos 6 caracteres.')
+    if (!email.trim() || password.length < MIN_PASSWORD_LENGTH) {
+      setMessage(`Completá el email y una contraseña de al menos ${MIN_PASSWORD_LENGTH} caracteres.`)
       return
     }
     setBusy(true)
@@ -55,8 +66,27 @@ export function SyncPanel({ onClose }: SyncPanelProps) {
       result.error ??
         (result.needsConfirmation ? 'Cuenta creada. Confirmá tu email y después iniciá sesión.' : null),
     )
+    setPassword('')
     setBusy(false)
   }
+
+  const leave = async (scope: SignOutScope, question: string) => {
+    if (!window.confirm(question)) return
+    setBusy(true)
+    setMessage(await signOut(scope))
+    setBusy(false)
+  }
+
+  const savePassword = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    const error = await changePassword(newPassword)
+    setMessage(error ?? 'Contraseña actualizada.')
+    if (!error) setNewPassword('')
+    setBusy(false)
+  }
+
+  const signedIn = sync.status === 'idle' || sync.status === 'syncing' || sync.status === 'error'
 
   return (
     <Sheet title="Sincronización" onClose={onClose}>
@@ -94,17 +124,66 @@ export function SyncPanel({ onClose }: SyncPanelProps) {
           </form>
         )}
 
-        {(sync.status === 'idle' || sync.status === 'syncing' || sync.status === 'error') && (
+        {signedIn && (
           <>
             {sync.email && <p className="status">Sesión: {sync.email}</p>}
             <div className="form-actions">
-              <button type="button" className="btn" onClick={() => void signOut()}>
+              <button type="button" className="btn" disabled={busy} onClick={() => void signOut('device')}>
                 Cerrar sesión
               </button>
               <button type="button" className="btn primary" onClick={() => void syncNow()} disabled={sync.status === 'syncing'}>
                 Sincronizar ahora
               </button>
             </div>
+            {message && <p className="status" role="alert">{message}</p>}
+
+            <details className="security">
+              <summary>Seguridad de la cuenta</summary>
+              <div className="form">
+                <form className="form" onSubmit={savePassword}>
+                  <label>
+                    Nueva contraseña
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                      minLength={MIN_PASSWORD_LENGTH}
+                      required
+                    />
+                  </label>
+                  <button type="submit" className="btn" disabled={busy}>
+                    Cambiar contraseña
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={() =>
+                    void leave(
+                      'wipe',
+                      'Se cierra la sesión y se borran las tareas guardadas en este dispositivo. Seguirán en tu cuenta. ¿Continuar?',
+                    )
+                  }
+                >
+                  Cerrar sesión y borrar datos de este dispositivo
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={() =>
+                    void leave(
+                      'everywhere',
+                      'Se cierra la sesión en todos tus dispositivos, incluido este. Útil si perdiste un teléfono. ¿Continuar?',
+                    )
+                  }
+                >
+                  Cerrar sesión en todos mis dispositivos
+                </button>
+              </div>
+            </details>
           </>
         )}
 

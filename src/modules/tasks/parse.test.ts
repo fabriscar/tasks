@@ -84,3 +84,12 @@ describe('parseQuickTask', () => {
     expect(p('mañana').title).toBe('mañana')
   })
 })
+
+describe('límites de entrada', () => {
+  it('procesa en tiempo acotado una frase enorme y la recorta', () => {
+    const start = performance.now()
+    const parsed = parseQuickTask('a '.repeat(50_000), now)
+    expect(performance.now() - start).toBeLessThan(500)
+    expect(parsed.title.length).toBeLessThanOrEqual(500)
+  })
+})
