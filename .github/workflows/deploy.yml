@@ -1,0 +1,54 @@
+name: Publicar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Por defecto el workflow solo puede leer el código. Cada job pide solo lo que necesita.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Sin scripts de instalación: una dependencia comprometida no puede ejecutar código al instalarse.
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          # La anon key es pública por diseño: la protección real es la política RLS de schema.sql.
+          # Si acá se pone una clave de administrador, el build falla a propósito.
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
