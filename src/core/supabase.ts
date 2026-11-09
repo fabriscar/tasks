@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { publicEnvProblem } from './keyGuard'
-import type { Remote, RemoteTask } from './sync'
+import type { Remote, RemoteRow } from './sync'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -27,18 +27,18 @@ export function supabaseRemote(): Remote {
   if (!supabase) throw new Error('Supabase no está configurado')
   const client = supabase
   return {
-    async push(rows) {
-      const { error } = await client.from('tasks').upsert(rows, { onConflict: 'id' })
+    async push(table, conflict, rows) {
+      const { error } = await client.from(table).upsert(rows, { onConflict: conflict })
       if (error) throw new Error(error.message)
     },
-    async pull(since) {
-      const out: RemoteTask[] = []
+    async pull(table, since) {
+      const out: RemoteRow[] = []
       for (let from = 0; ; from += PAGE) {
-        let query = client.from('tasks').select('*').order('synced_at').order('id').range(from, from + PAGE - 1)
+        let query = client.from(table).select('*').order('synced_at').order('id').range(from, from + PAGE - 1)
         if (since) query = query.gt('synced_at', since)
         const { data, error } = await query
         if (error) throw new Error(error.message)
-        out.push(...(data as RemoteTask[]))
+        out.push(...(data as RemoteRow[]))
         if (data.length < PAGE) return out
       }
     },

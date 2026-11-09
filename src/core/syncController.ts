@@ -33,6 +33,9 @@ export const useSyncState = () => useSyncExternalStore(subscribe, () => state)
 
 function friendlyError(e: unknown): string {
   const message = e instanceof Error ? e.message : String(e)
+  if (/schema cache|does not exist|PGRST20[0-9]/i.test(message)) {
+    return 'Falta actualizar la base de datos: ejecutá supabase/schema.sql en Supabase.'
+  }
   if (!navigator.onLine || /failed to fetch|networkerror|load failed/i.test(message)) {
     return 'Sin conexión. Se reintenta solo.'
   }

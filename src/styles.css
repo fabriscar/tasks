@@ -213,16 +213,21 @@ h1 {
 
 /* ---------- La hoja ---------- */
 
-.page {
+.page,
+.ruled {
   position: relative;
-  flex: 1;
-  padding-bottom: var(--line);
   background-image: linear-gradient(to bottom, transparent calc(var(--line) - 1px), var(--rule) calc(var(--line) - 1px));
   background-size: 100% var(--line);
 }
 
+.page {
+  flex: 1;
+  padding-bottom: var(--line);
+}
+
 /* Margen doble, como el del cuaderno. */
-.page::before {
+.page::before,
+.ruled::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 calc(var(--gutter) - 3px);
@@ -232,7 +237,17 @@ h1 {
   pointer-events: none;
 }
 
-.page ul {
+/* Pestañas que no son una hoja rayada (la tabla de hábitos). */
+.page.plain {
+  background-image: none;
+}
+
+.page.plain::before {
+  display: none;
+}
+
+.page ul,
+.ruled ul {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -752,4 +767,507 @@ fieldset {
 
 .security .form {
   padding-top: 8px;
+}
+
+/* ---------- Hábitos ---------- */
+
+:root {
+  --cell: 36px;
+  --cell-w: 32px;
+}
+
+.tally {
+  margin-left: 6px;
+  color: var(--blue);
+  font-size: 24px;
+}
+
+.gutter-mark {
+  display: grid;
+  place-items: center;
+  height: var(--line);
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+.placeholder {
+  position: relative;
+  top: 2px;
+  color: var(--ink-2);
+}
+
+.row .day-number {
+  display: grid;
+  place-items: center;
+  height: var(--line);
+  color: var(--ink-2);
+  font: 600 24px/1 var(--hand);
+}
+
+.row .day-number + .row-body .placeholder {
+  opacity: 0.6;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 2px;
+  padding: 10px 10px 6px 6px;
+}
+
+.month-nav h2 {
+  margin: 0;
+  text-align: center;
+  font: 600 27px/1 var(--hand);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--blue-soft);
+}
+
+.icon-btn:disabled {
+  color: var(--edge);
+  cursor: default;
+}
+
+.month-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.btn.small {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 14.5px;
+}
+
+.grid-wrap {
+  overflow-x: auto;
+  margin: 4px 0 0;
+  padding: 0 0 4px;
+  border-block: 1px solid var(--edge);
+  background: var(--paper);
+}
+
+.habit-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  margin: 0 auto 0 0;
+}
+
+.habit-grid th,
+.habit-grid td {
+  box-sizing: border-box;
+  padding: 0;
+  font-weight: 500;
+}
+
+.habit-grid .day,
+.habit-grid .corner {
+  width: var(--cell-w);
+  min-width: var(--cell-w);
+}
+
+.habit-grid .cell,
+.habit-grid .total,
+.habit-grid .hab-head {
+  width: var(--cell-w);
+  min-width: var(--cell-w);
+}
+
+.habit-grid .hab-head {
+  height: 118px;
+  vertical-align: bottom;
+  border-bottom: 1.5px solid var(--edge);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.habit-grid .hab-head span {
+  display: block;
+  max-height: 112px;
+  margin: 0 auto 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.habit-grid .corner,
+.habit-grid .day,
+.habit-grid tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--paper);
+}
+
+.habit-grid .corner {
+  border-bottom: 1.5px solid var(--edge);
+}
+
+.habit-grid .day {
+  height: var(--cell);
+  border-right: 1.5px solid var(--edge);
+  border-bottom: 1px solid var(--rule);
+}
+
+.habit-grid .day button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(var(--cell) - 1px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: 600 22px/1 var(--hand);
+}
+
+.habit-grid .day button:disabled {
+  color: var(--edge);
+  cursor: default;
+}
+
+.habit-grid .is-today .day button {
+  color: var(--ink);
+}
+
+.habit-grid .is-today .day button::before {
+  content: '';
+  position: absolute;
+  inset: 7px 5px 6px;
+  z-index: -1;
+  border-radius: 3px;
+  background: var(--highlighter);
+}
+
+.note-dot {
+  position: absolute;
+  top: 6px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--margin);
+}
+
+.habit-grid .cell {
+  height: var(--cell);
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.habit-grid .cell button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(var(--cell) - 1px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+}
+
+.habit-grid .cell button:not(:disabled):hover {
+  background: var(--blue-soft);
+}
+
+.habit-grid .cell button:disabled {
+  cursor: default;
+}
+
+.habit-grid .cell.off {
+  background: repeating-linear-gradient(135deg, transparent 0 5px, var(--rule) 5px 6px);
+}
+
+.habit-grid .cell svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+
+.habit-grid .mark {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 34;
+  stroke-dashoffset: 34;
+  transition: stroke-dashoffset 0.2s ease-out;
+}
+
+.habit-grid .cell.done .mark {
+  stroke-dashoffset: 0;
+}
+
+.habit-grid .is-today .cell {
+  background-color: color-mix(in srgb, var(--highlighter) 22%, transparent);
+}
+
+.habit-grid .is-today .cell.off {
+  background-color: transparent;
+}
+
+.habit-grid .chart-head,
+.habit-grid .chart-cell {
+  width: 132px;
+  min-width: 132px;
+}
+
+.habit-grid .chart-head {
+  vertical-align: bottom;
+  border-bottom: 1.5px solid var(--edge);
+}
+
+.chart-scale text {
+  fill: var(--ink-2);
+  font: 600 13px var(--font);
+}
+
+.habit-grid .chart-cell {
+  position: relative;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+
+.chart {
+  display: block;
+}
+
+.chart .gridline {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.chart .axis {
+  stroke: var(--edge);
+  stroke-width: 1.5;
+}
+
+.chart .trace {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart .dot {
+  fill: var(--blue);
+}
+
+.chart .dot.today {
+  fill: var(--margin);
+  stroke: var(--paper);
+  stroke-width: 2;
+}
+
+.habit-grid .total {
+  height: 46px;
+  border-top: 1.5px solid var(--edge);
+  color: var(--ink-2);
+  line-height: 1.15;
+  text-align: center;
+}
+
+.habit-grid .total b {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.habit-grid .total span {
+  display: block;
+  font-size: 11.5px;
+}
+
+.habit-grid tfoot th {
+  border-top: 1.5px solid var(--edge);
+  border-right: 1.5px solid var(--edge);
+}
+
+.habit-grid .average {
+  border-top: 1.5px solid var(--edge);
+  padding: 0 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: center;
+}
+
+.habits-empty {
+  display: grid;
+  gap: 14px;
+  padding: 28px 20px;
+  color: var(--ink-2);
+}
+
+.habits-empty p {
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.facts {
+  padding-top: 22px;
+}
+
+.facts-title {
+  margin: 0;
+  padding: 0 20px 6px;
+  font: 600 30px/1 var(--hand);
+}
+
+.facts .ruled {
+  border-block: 1px solid var(--edge);
+  padding-bottom: 0;
+}
+
+.facts .note {
+  padding-left: calc(var(--gutter) + 14px);
+}
+
+.toggle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px 0 8px;
+  border: 1.5px solid var(--edge);
+  border-radius: 10px;
+  background: var(--paper);
+  text-align: left;
+  font-size: 17px;
+}
+
+.toggle-row svg {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+  flex: none;
+  color: var(--blue);
+}
+
+.toggle-row.is-done {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.toggle-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.manage-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.manage-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manage-list li > input,
+.manage-list li > .removed-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.manage-list input {
+  width: 100%;
+  min-height: 46px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--edge);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.removed-name {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.manage-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.mini {
+  min-height: 44px;
+  min-width: 42px;
+  padding: 0 10px;
+  border: 1.5px solid var(--edge);
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mini.text {
+  margin-left: 0;
+}
+
+.mini.danger {
+  color: var(--late);
+}
+
+.mini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.add-habit {
+  display: flex;
+  gap: 8px;
+}
+
+.add-habit input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--edge);
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 17px;
+}
+
+.tabs button {
+  font-size: 14.5px;
 }

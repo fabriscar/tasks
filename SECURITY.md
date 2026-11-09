@@ -13,7 +13,7 @@
 | Pegar por error una clave de administrador | El build falla si `VITE_SUPABASE_ANON_KEY` es `service_role` o `sb_secret_…`, y la app se niega a usarla en ejecución |
 | Publicar un secreto en una variable `VITE_*` | El build falla si el nombre sugiere un secreto (`SECRET`, `TOKEN`, `ANTHROPIC`, `OPENAI`, `API_KEY`…) |
 | Código inyectado (XSS) | Política de contenido (CSP) estricta: solo código propio y solo conexión a tu Supabase. React escapa todo el texto. No se usa `innerHTML`, `eval` ni similares |
-| Robo de datos entre cuentas | RLS en la tabla; el rol `anon` no tiene permisos; pruebas automáticas en `supabase/schema.test.ts` |
+| Robo de datos entre cuentas | RLS en todas las tablas (tareas, hábitos, días marcados y notas); el rol `anon` no tiene permisos; pruebas automáticas en `supabase/schema.test.ts` |
 | Mezcla de datos si otra persona inicia sesión en el mismo equipo | Al cambiar de cuenta se descartan los datos locales de la anterior |
 | Equipo compartido o perdido | “Cerrar sesión y borrar datos de este dispositivo” y “Cerrar sesión en todos mis dispositivos” (panel de la nube > Seguridad de la cuenta) |
 | Saturar la base o colgar la app con textos enormes | Topes de tamaño en la app y en la base de datos |

@@ -1,72 +1,50 @@
+import type { Table } from 'dexie'
 import { db } from './db'
-import type { Priority, Repeat, Task } from './types'
 
-/** Fila tal como vive en Supabase (snake_case). */
-export interface RemoteTask {
+/** Todo lo que se sincroniza tiene estos campos: última edición, borrado lógico y marca de pendiente. */
+export interface Syncable {
   id: string
-  user_id: string
-  title: string
-  notes: string
-  due_date: string | null
-  due_time: string | null
-  priority: number
-  tags: string[]
-  recurrence: Repeat | null
-  done_at: string | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-  synced_at?: string
+  updatedAt: string
+  deletedAt: string | null
+  dirty: 0 | 1
+}
+
+/** Fila tal como vive en Supabase (snake_case). Toda tabla remota tiene `id`, `user_id`, `updated_at` y `synced_at`. */
+export type RemoteRow = { id: string; updated_at: string; synced_at?: string } & Record<string, unknown>
+
+/** Cómo se sincroniza una tabla. Cada módulo define la suya y la registra en `src/modules/index.ts`. */
+export interface SyncTableDef<L extends Syncable = any> {
+  /** Nombre de la tabla en Supabase. */
+  remote: string
+  /** Columnas de la clave primaria remota, para el upsert. */
+  conflict: string
+  /** Clave en `meta` donde se guarda hasta dónde se bajó. */
+  cursorKey: string
+  local: () => Table<L, string, L>
+  toRemote(row: L, userId: string): RemoteRow
+  fromRemote(row: RemoteRow): L
 }
 
 export interface Remote {
-  push(rows: RemoteTask[]): Promise<void>
-  /** Todas las filas con synced_at posterior a `since`, ordenadas por synced_at. */
-  pull(since: string | null): Promise<RemoteTask[]>
+  push(table: string, conflict: string, rows: RemoteRow[]): Promise<void>
+  /** Todas las filas de `table` con synced_at posterior a `since`, ordenadas por synced_at. */
+  pull(table: string, since: string | null): Promise<RemoteRow[]>
 }
+
+const registry: SyncTableDef[] = []
+
+export function registerSyncTable(def: SyncTableDef): void {
+  if (!registry.some((d) => d.remote === def.remote)) registry.push(def)
+}
+
+export const syncTables = () => registry
 
 const OVERLAP_MS = 5_000
 const BATCH = 200
 
 /** Postgres devuelve microsegundos; Date.parse solo es confiable con milisegundos. */
 export const ts = (s: string) => Date.parse(s.replace(/(\.\d{3})\d+/, '$1'))
-const iso = (s: string | null) => (s ? new Date(ts(s)).toISOString() : null)
-
-export function toRemote(t: Task, userId: string): RemoteTask {
-  return {
-    id: t.id,
-    user_id: userId,
-    title: t.title,
-    notes: t.notes,
-    due_date: t.dueDate,
-    due_time: t.dueTime,
-    priority: t.priority,
-    tags: t.tags,
-    recurrence: t.repeat,
-    done_at: t.doneAt,
-    created_at: t.createdAt,
-    updated_at: t.updatedAt,
-    deleted_at: t.deletedAt,
-  }
-}
-
-export function fromRemote(r: RemoteTask): Task {
-  return {
-    id: r.id,
-    title: r.title,
-    notes: r.notes ?? '',
-    dueDate: r.due_date,
-    dueTime: r.due_time ? r.due_time.slice(0, 5) : null,
-    priority: r.priority as Priority,
-    tags: r.tags ?? [],
-    repeat: r.recurrence,
-    doneAt: iso(r.done_at),
-    createdAt: iso(r.created_at)!,
-    updatedAt: iso(r.updated_at)!,
-    deletedAt: iso(r.deleted_at),
-    dirty: 0,
-  }
-}
+export const iso = (s: string | null | undefined) => (s ? new Date(ts(s)).toISOString() : null)
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
@@ -74,69 +52,90 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out
 }
 
-/**
- * Una pasada de sincronización: sube lo pendiente y baja lo nuevo.
- * Ante un conflicto gana la edición más reciente (por updatedAt) de cada tarea.
- */
-export async function syncOnce(remote: Remote, userId: string): Promise<{ pushed: number; pulled: number }> {
+async function syncTable(remote: Remote, def: SyncTableDef, userId: string): Promise<{ pushed: number; pulled: number }> {
+  const local = def.local()
   let pushed = 0
 
-  const dirty = await db.tasks.where('dirty').equals(1).toArray()
+  const dirty = await local.where('dirty').equals(1).toArray()
   for (const batch of chunk(dirty, BATCH)) {
-    await remote.push(batch.map((t) => toRemote(t, userId)))
-    // Si la tarea se volvió a editar mientras subía, queda pendiente para la próxima pasada.
-    await db.transaction('rw', db.tasks, async () => {
-      for (const t of batch) {
-        const current = await db.tasks.get(t.id)
-        if (current && current.updatedAt === t.updatedAt) await db.tasks.update(t.id, { dirty: 0 })
+    await remote.push(def.remote, def.conflict, batch.map((row) => def.toRemote(row, userId)))
+    // Si algo se volvió a editar mientras subía, queda pendiente para la próxima pasada.
+    await db.transaction('rw', local, async () => {
+      for (const row of batch) {
+        const current = await local.get(row.id)
+        if (current && current.updatedAt === row.updatedAt) await local.update(row.id, { dirty: 0 })
       }
     })
     pushed += batch.length
   }
 
-  const cursor = (await db.meta.get('lastPull'))?.value as string | undefined
+  const cursor = (await db.meta.get(def.cursorKey))?.value as string | undefined
   const since = cursor ? new Date(ts(cursor) - OVERLAP_MS).toISOString() : null
-  const rows = await remote.pull(since)
+  const rows = await remote.pull(def.remote, since)
 
-  await db.transaction('rw', db.tasks, db.meta, async () => {
+  await db.transaction('rw', local, db.meta, async () => {
     let newest = cursor ? ts(cursor) : -Infinity
     let newestRaw = cursor
     for (const r of rows) {
-      const local = await db.tasks.get(r.id)
-      if (!(local?.dirty && ts(local.updatedAt) > ts(r.updated_at))) {
-        await db.tasks.put(fromRemote(r))
+      const current = await local.get(r.id)
+      if (!(current?.dirty && ts(current.updatedAt) > ts(r.updated_at))) {
+        await local.put(def.fromRemote(r))
       }
       if (r.synced_at && ts(r.synced_at) > newest) {
         newest = ts(r.synced_at)
         newestRaw = r.synced_at
       }
     }
-    if (newestRaw && newestRaw !== cursor) await db.meta.put({ key: 'lastPull', value: newestRaw })
+    if (newestRaw && newestRaw !== cursor) await db.meta.put({ key: def.cursorKey, value: newestRaw })
   })
 
   return { pushed, pulled: rows.length }
 }
 
 /**
- * Las tareas locales pertenecen a una sola cuenta. Si en este dispositivo inicia sesión otra cuenta,
+ * Una pasada de sincronización: por cada tabla sube lo pendiente y baja lo nuevo.
+ * Ante un conflicto gana la edición más reciente (por updatedAt) de cada registro.
+ * Un error en una tabla no impide sincronizar las otras; se informa al final.
+ */
+export async function syncOnce(
+  remote: Remote,
+  userId: string,
+  tables: SyncTableDef[] = registry,
+): Promise<{ pushed: number; pulled: number }> {
+  let pushed = 0
+  let pulled = 0
+  const errors: unknown[] = []
+  for (const def of tables) {
+    try {
+      const result = await syncTable(remote, def, userId)
+      pushed += result.pushed
+      pulled += result.pulled
+    } catch (e) {
+      errors.push(e)
+    }
+  }
+  if (errors.length) throw errors[0]
+  return { pushed, pulled }
+}
+
+async function clearEverything(): Promise<void> {
+  await db.transaction('rw', db.tables, async () => {
+    for (const table of db.tables) await table.clear()
+  })
+}
+
+/**
+ * Los datos locales pertenecen a una sola cuenta. Si en este dispositivo inicia sesión otra cuenta,
  * se descartan los datos de la anterior para no subirlos (ni mostrarlos) en la cuenta nueva.
- * Las tareas creadas antes de iniciar sesión por primera vez pasan a ser de esa cuenta.
+ * Lo creado antes de iniciar sesión por primera vez pasa a ser de esa cuenta.
  */
 export async function claimLocalData(userId: string): Promise<void> {
-  await db.transaction('rw', db.tasks, db.meta, async () => {
-    const owner = (await db.meta.get('owner'))?.value
-    if (owner && owner !== userId) {
-      await db.tasks.clear()
-      await db.meta.clear()
-    }
-    await db.meta.put({ key: 'owner', value: userId })
-  })
+  const owner = (await db.meta.get('owner'))?.value
+  if (owner && owner !== userId) await clearEverything()
+  await db.meta.put({ key: 'owner', value: userId })
 }
 
 /** Borra todo lo guardado en este dispositivo. */
 export async function wipeLocalData(): Promise<void> {
-  await db.transaction('rw', db.tasks, db.meta, async () => {
-    await db.tasks.clear()
-    await db.meta.clear()
-  })
+  await clearEverything()
 }

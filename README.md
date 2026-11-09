@@ -2,7 +2,7 @@
 
 App personal para anotar y seguir tareas, pensada para reemplazar el cuaderno. Funciona en el iPhone y en Windows como app instalable (PWA), sin conexión, y sincroniza entre dispositivos.
 
-Hoy incluye la **fase 1: tareas**. Los hábitos y el resto de los módulos se agregan después sobre la misma base (ver [Estructura](#estructura)).
+Hoy incluye **tareas** y **hábitos**. El resto de los módulos (salud, finanzas, metas…) se agregan después sobre la misma base (ver [Estructura](#estructura)).
 
 ## Qué hace
 
@@ -22,6 +22,14 @@ Hoy incluye la **fase 1: tareas**. Los hábitos y el resto de los módulos se ag
 - **Repetición:** al completar una tarea repetitiva se crea la siguiente.
 - **Sincronización** entre dispositivos con Supabase (opcional, ver abajo). Funciona sin conexión y sube los cambios cuando vuelve internet.
 - **Copia de seguridad** en JSON desde el panel de sincronización (ícono de nube).
+- **Hábitos** (pestaña *Hábitos*), como la tabla del cuaderno:
+  - Una tabla por mes: los días en filas, tus hábitos en columnas y una **X** por cada día cumplido. Un toque marca o desmarca; también se pueden completar días pasados. Los días futuros no se pueden marcar.
+  - **Gráfico en zigzag** al lado: cada renglón es un día y la línea muestra cuántos hábitos cumpliste ese día (0 a la cantidad de hábitos).
+  - **Totales** por hábito al pie (`27/31`) y el promedio de hábitos por día.
+  - **Hecho relevante** de cada día, con la lista del mes como en la hoja de “Hechos relevantes”. Se carga tocando el número del día o desde *Hoy*.
+  - En *Hoy* aparece el bloque **Hábitos de hoy** para marcar todo sin entrar a la tabla.
+  - **Mis hábitos:** agregar, renombrar, reordenar y quitar. *Quitar* hace que el hábito deje de aparecer desde el mes que viene y conserva el historial (se puede volver a usar). *Borrar* elimina el hábito con todos sus días. La primera vez podés cargar los de tu cuaderno (Leer, Gimnasio, Dejar vicios, Estudiar, Dormir 8 horas, Celular <3hs, Escribir).
+  - Navegación entre meses para revisar los anteriores.
 - **Seguridad de la cuenta:** cambiar contraseña, cerrar sesión y borrar los datos de un dispositivo, o cerrar sesión en todos los dispositivos si perdés uno.
 
 ## Desarrollo
@@ -37,7 +45,7 @@ npm run build      # genera dist/
 ## Activar la sincronización (Supabase, plan gratuito)
 
 1. Crear una cuenta y un proyecto en [supabase.com](https://supabase.com).
-2. En **SQL Editor**, pegar y ejecutar el contenido de [`supabase/schema.sql`](supabase/schema.sql).
+2. En **SQL Editor**, pegar y ejecutar el contenido de [`supabase/schema.sql`](supabase/schema.sql). Si ya lo habías ejecutado antes, volvé a ejecutarlo completo: se puede repetir sin problema y agrega las tablas de hábitos sin tocar tus tareas. Mientras falte, la app avisa “Falta actualizar la base de datos” y las tareas siguen sincronizando.
 3. En **Authentication > Providers**, dejar habilitado Email. Si lo dejás con confirmación por mail, en **Authentication > URL Configuration** poné como *Site URL* la dirección donde publiques la app.
 4. En **Project Settings > API** copiar la *Project URL* y la clave *anon public*.
 5. Para probar en local: copiar `.env.example` a `.env.local` y completar los dos valores.
@@ -62,7 +70,8 @@ El workflow [`deploy.yml`](.github/workflows/deploy.yml) publica en GitHub Pages
 src/
   core/               # base local (IndexedDB), sincronización, fechas, repetición
   modules/
-    tasks/            # fase 1: parser, repositorio, vistas y componentes
+    tasks/            # tareas: parser, repositorio, vistas y componentes
+    habits/           # hábitos: tabla del mes, gráfico, hechos relevantes
 supabase/schema.sql   # tabla y seguridad del servidor
 ```
 
@@ -72,4 +81,5 @@ Cada módulo nuevo (hábitos, salud, finanzas…) va en su propia carpeta de `mo
 
 - **Recordatorios y notificaciones:** en iPhone solo funcionan para apps instaladas en la pantalla de inicio (iOS 16.4 o superior) y necesitan un pequeño servidor que las envíe. Es el siguiente paso natural.
 - **Captura por voz o Siri:** hoy se puede dictar con el micrófono del teclado del iPhone. Un atajo de Siri que anote sin abrir la app requiere un endpoint propio.
-- Hábitos, estadísticas y el resto de los módulos.
+- Estadísticas de hábitos más allá del mes (rachas, comparación entre meses) y pasar a la app los meses ya escritos en el cuaderno.
+- El resto de los módulos de vida en general.

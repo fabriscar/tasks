@@ -35,3 +35,15 @@ export const CloudIcon = ({ size = 22 }: IconProps) => (
     <path d="M17.5 19a4.5 4.5 0 1 0-1.2-8.84A6 6 0 0 0 4.6 12.2 3.4 3.4 0 0 0 6.5 19Z" />
   </svg>
 )
+
+export const ChevronLeftIcon = ({ size = 22 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="m15 18-6-6 6-6" />
+  </svg>
+)
+
+export const ChevronRightIcon = ({ size = 22 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+)

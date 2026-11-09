@@ -116,3 +116,87 @@ describe('topes de tamaño y formato', () => {
     expect(rows[0].fresh).toBe(true)
   })
 })
+
+describe('hábitos, días marcados y notas', () => {
+  const H = 'bbbbbbbb-0000-0000-0000-000000000001'
+  const dayLogId = (habit: string, date: string) => `${habit}:${date}`
+
+  const habit = (uid: string, habitId: string, name = 'Leer') =>
+    db.query(
+      `insert into public.habits (id, user_id, name, position, created_on, created_at, updated_at)
+       values ($1, $2, $3, 0, '2026-11-01', now(), now())
+       on conflict (user_id, id) do update set name = excluded.name`,
+      [habitId, uid, name],
+    )
+  const logRow = (uid: string, habitId: string, date: string, idOverride?: string) =>
+    db.query(
+      `insert into public.habit_logs (id, user_id, habit_id, date, created_at, updated_at)
+       values ($1, $2, $3, $4, now(), now())
+       on conflict (user_id, id) do update set updated_at = now()`,
+      [idOverride ?? dayLogId(habitId, date), uid, habitId, date],
+    )
+  const noteRow = (uid: string, date: string, text: string) =>
+    db.query(
+      `insert into public.day_notes (id, user_id, text, created_at, updated_at)
+       values ($1, $2, $3, now(), now())
+       on conflict (user_id, id) do update set text = excluded.text`,
+      [date, uid, text],
+    )
+
+  beforeAll(async () => {
+    await as('authenticated', A, async () => {
+      await habit(A, H)
+      await logRow(A, H, '2026-11-02')
+      await noteRow(A, '2026-11-09', 'Cobré mi sueldo')
+    })
+  })
+
+  it('cada usuario ve solo lo suyo en las tres tablas', async () => {
+    for (const table of ['habits', 'habit_logs', 'day_notes']) {
+      const { rows } = await as('authenticated', B, () => db.query(`select * from public.${table}`))
+      expect(rows).toHaveLength(0)
+    }
+  })
+
+  it('sin sesión (anon) no hay acceso', async () => {
+    for (const table of ['habits', 'habit_logs', 'day_notes']) {
+      await expect(as('anon', null, () => db.query(`select * from public.${table}`))).rejects.toThrow(/permission denied/)
+    }
+  })
+
+  it('dos usuarios pueden tener una nota en la misma fecha sin pisarse', async () => {
+    await as('authenticated', B, () => noteRow(B, '2026-11-09', 'Nota de B'))
+    const a = await as('authenticated', A, () => db.query('select text from public.day_notes'))
+    const b = await as('authenticated', B, () => db.query('select text from public.day_notes'))
+    expect(a.rows).toEqual([{ text: 'Cobré mi sueldo' }])
+    expect(b.rows).toEqual([{ text: 'Nota de B' }])
+  })
+
+  it('no se puede escribir a nombre de otro usuario', async () => {
+    await expect(as('authenticated', B, () => habit(A, 'bbbbbbbb-0000-0000-0000-000000000002'))).rejects.toThrow(/row-level security/)
+    await expect(as('authenticated', B, () => noteRow(A, '2026-11-10', 'x'))).rejects.toThrow(/row-level security/)
+  })
+
+  it('rechaza datos fuera de formato o tamaño', async () => {
+    const bad: [string, () => Promise<unknown>][] = [
+      ['nombre de hábito vacío', () => habit(A, 'bbbbbbbb-0000-0000-0000-000000000003', '')],
+      ['nombre de hábito de 61 caracteres', () => habit(A, 'bbbbbbbb-0000-0000-0000-000000000004', 'x'.repeat(61))],
+      ['id de día que no coincide con hábito y fecha', () => logRow(A, H, '2026-11-03', `${H}:2026-11-04`)],
+      ['nota con fecha mal escrita', () => noteRow(A, '09/11/2026', 'x')],
+      ['nota vacía', () => noteRow(A, '2026-11-11', '')],
+      ['nota de 501 caracteres', () => noteRow(A, '2026-11-12', 'x'.repeat(501))],
+    ]
+    for (const [label, run] of bad) {
+      await expect(as('authenticated', A, run), label).rejects.toThrow(/check constraint/)
+    }
+  })
+
+  it('synced_at lo completa el servidor en las tres tablas', async () => {
+    for (const table of ['habits', 'habit_logs', 'day_notes']) {
+      const { rows } = await as('authenticated', A, () =>
+        db.query<{ fresh: boolean }>(`select synced_at > now() - interval '1 minute' as fresh from public.${table}`),
+      )
+      expect(rows.every((r) => r.fresh)).toBe(true)
+    }
+  })
+})
