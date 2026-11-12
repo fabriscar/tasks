@@ -6,8 +6,10 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { App } from './App'
 import { startSync } from './core/syncController'
+import { registerModules } from './modules'
 
 registerSW({ immediate: true })
+registerModules()
 startSync()
 
 createRoot(document.getElementById('root')!).render(

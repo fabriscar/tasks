@@ -9,11 +9,15 @@ import { CloudIcon } from './modules/tasks/components/icons'
 import { SyncPanel } from './modules/tasks/components/SyncPanel'
 import { TaskEditor } from './modules/tasks/components/TaskEditor'
 import { TaskRow } from './modules/tasks/components/TaskRow'
+import { DaySheet } from './modules/habits/components/DaySheet'
+import { HabitManager } from './modules/habits/components/HabitManager'
+import { HabitsView } from './modules/habits/components/HabitsView'
+import { TodayHabits } from './modules/habits/components/TodayHabits'
 import type { ParsedTask } from './modules/tasks/parse'
 import { addTask, removeTask, restoreTask, setDone, updateTask } from './modules/tasks/repo'
 import { buildViews } from './modules/tasks/views'
 
-type Tab = 'hoy' | 'proximas' | 'bandeja' | 'hechas'
+type Tab = 'hoy' | 'proximas' | 'bandeja' | 'habitos' | 'hechas'
 
 interface Toast {
   id: number
@@ -52,6 +56,8 @@ export function App() {
   const [tab, setTab] = useState<Tab>('hoy')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
+  const [dayOpen, setDayOpen] = useState<string | null>(null)
+  const [managingHabits, setManagingHabits] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -78,10 +84,11 @@ export function App() {
     { id: 'hoy', label: 'Hoy', count: views?.pendingNow },
     { id: 'proximas', label: 'Próximas' },
     { id: 'bandeja', label: 'Bandeja', count: views?.inbox.length },
+    { id: 'habitos', label: 'Hábitos' },
     { id: 'hechas', label: 'Hechas' },
   ]
 
-  const title = { hoy: longDate(today), proximas: 'Próximas', bandeja: 'Bandeja', hechas: 'Hechas' }[tab]
+  const title = { hoy: longDate(today), proximas: 'Próximas', bandeja: 'Bandeja', habitos: 'Hábitos', hechas: 'Hechas' }[tab]
 
   return (
     <div className="app">
@@ -124,7 +131,7 @@ export function App() {
         ))}
       </nav>
 
-      <main className="page">
+      <main className={tab === 'habitos' ? 'page plain' : 'page'}>
         {views && tab === 'hoy' && (
           <>
             {views.overdue.length > 0 && (
@@ -152,6 +159,7 @@ export function App() {
                 )
               )}
             </section>
+            <TodayHabits today={today} onOpenDay={setDayOpen} />
             {views.inbox.length > 0 && (
               <p className="note">
                 Tenés {views.inbox.length} {views.inbox.length === 1 ? 'tarea' : 'tareas'} sin fecha.{' '}
@@ -200,6 +208,10 @@ export function App() {
             <p className="note">La bandeja está vacía. Lo que anotes sin fecha aparece acá para que lo ubiques.</p>
           ))}
 
+        {tab === 'habitos' && (
+          <HabitsView today={today} onOpenDay={setDayOpen} onManage={() => setManagingHabits(true)} />
+        )}
+
         {views && tab === 'hechas' &&
           (views.done.length > 0 ? (
             <ul>
@@ -232,6 +244,8 @@ export function App() {
 
       {editing && <TaskEditor key={editing.id} task={editing} onClose={() => setEditingId(null)} onDeleted={onDeleted} />}
       {syncOpen && <SyncPanel onClose={() => setSyncOpen(false)} />}
+      {dayOpen && <DaySheet key={dayOpen} date={dayOpen} onClose={() => setDayOpen(null)} />}
+      {managingHabits && <HabitManager onClose={() => setManagingHabits(false)} />}
     </div>
   )
 }
